@@ -1,7 +1,7 @@
 /**
  * App configuration
  */
-const dotenv = require('dotenv');
+import dotenv from 'dotenv';
 
 dotenv.config();
 
@@ -15,4 +15,4 @@ const config = {
   EXECUTABLE_PATH: process.env.EXECUTABLE_PATH || './scripts/dummy-app.js',
 };
 
-module.exports = { config };
+export { config };

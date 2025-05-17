@@ -1,7 +1,7 @@
-const express = require('express');
-const dotenv = require('dotenv');
-const cors = require('cors');
-const { setupSwagger } = require('./config/swagger');
+import express from 'express';
+import dotenv from 'dotenv';
+import cors from 'cors';
+import { logger, createHttpLogger } from './logger/index.js';
 
 dotenv.config();
 
@@ -11,15 +11,13 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(express.json());
 app.use(cors());
-
-// Swagger settings
-setupSwagger(app);
+app.use(createHttpLogger(logger));
 
 app.get('/', (req, res) => {
+  logger.info('Root endpoint accessed');
   res.json({ message: 'Job Concurrency Manager API' });
 });
 
 app.listen(PORT, () => {
-  console.log(`Server started on port ${PORT}. `);
-  console.log(`API Documentation: http://localhost:${PORT}/api-docs`);
+  logger.info(`Server started on port ${PORT}.`);
 });

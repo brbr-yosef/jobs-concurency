@@ -2,6 +2,7 @@
   "name": "brbr_jobs-concurency",
   "version": "0.0.1",
   "description": "Backend service for launching and monitoring native processing jobs concurrently",
+  "type": "module",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
@@ -17,12 +18,16 @@
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^5.1.0",
+    "morgan": "^1.10.0",
+    "rotating-file-stream": "^3.1.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.0",
     "uuid": "^11.1.0",
-    "winston": "^3.17.0"
+    "winston": "^3.17.0",
+    "winston-daily-rotate-file": "^3.0"
   },
   "devDependencies": {
+    "@types/jest": "^29.2.5",
     "eslint": "^9.27.0",
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-plugin-import": "^2.29.1",

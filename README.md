@@ -13,8 +13,8 @@ Your service should:
 2. Track their statuses and handle unexpected exits (watchdog behavior)
 3. Expose 3 REST endpoints:
 1. POST /jobs
-   ○ Starts a new job
-   ○ Request body (Example) :
+   * Starts a new job
+   * Request body (Example) :
 ```
    {
     "jobName": "my-task-42",
@@ -26,12 +26,12 @@ Your service should:
 ```   
 2. GET /jobs
    
-    ○ Returns a list of all submitted jobs and their current statuses (running, completed,
+    * Returns a list of all submitted jobs and their current statuses (running, completed,
    crashed, retried, etc.)
 
 3. GET /stats
 
-   ○ Return (imaginary or real) correlations between various job characteristics and job
+   * Return (imaginary or real) correlations between various job characteristics and job
 success.
 
 The goal is to surface interesting patterns — even if artificial — that might suggest a

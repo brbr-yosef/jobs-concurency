@@ -1,6 +1,6 @@
-const swaggerJsdoc = require('swagger-jsdoc');
-const swaggerUi = require('swagger-ui-express');
-const { config } = require('./index');
+import swaggerJsdoc from 'swagger-jsdoc';
+import swaggerUi from 'swagger-ui-express';
+import { config } from './index.js';
 
 const swaggerOptions = {
   definition: {
@@ -168,4 +168,4 @@ function setupSwagger(app) {
   console.log(`Swagger documentation available at http://localhost:${config.PORT}/api-docs`);
 }
 
-module.exports = { setupSwagger };
+export { setupSwagger };
