@@ -239,4 +239,142 @@ describe('JobService', () => {
       expect(stats.retriedJobs).toBeGreaterThanOrEqual(0);
     });
   });
+  
+  describe('deleteJob', () => {
+    beforeEach(() => {
+      // Ensure jobService is clean before each test
+      jobService.clearAllJobs();
+      
+      // Reset mock implementations
+      mockRun.mockImplementation((command, callback) => {
+        callback(null, 'Command executed successfully', null);
+        return { pid: 12345 };
+      });
+    });
+    
+    test('Should successfully delete a job in PENDING state', () => {
+      // Create a job
+      const job = jobService.createJob('test-job');
+      
+      // Verify initial state
+      expect(job).toBeDefined();
+      expect(job.id).toBeDefined();
+      
+      // Explicitly set status to PENDING if it's not already
+      if (job.status !== JobStatus.PENDING) {
+        job.updateStatus(JobStatus.PENDING);
+      }
+      expect(job.status).toBe(JobStatus.PENDING);
+      
+      // Delete the job
+      const result = jobService.deleteJob(job.id);
+      
+      // Verify the result
+      expect(result.success).toBe(true);
+      
+      // Verify the job is actually deleted
+      const retrievedJob = jobService.getJobById(job.id);
+      expect(retrievedJob).toBeNull();
+    });
+    
+    test('Should successfully delete a job in PAUSED state', () => {
+      // Create a job
+      const job = jobService.createJob('test-job');
+      
+      // Verify initial state
+      expect(job).toBeDefined();
+      expect(job.id).toBeDefined();
+      
+      // Set status to PAUSED
+      job.updateStatus(JobStatus.PAUSED);
+      expect(job.status).toBe(JobStatus.PAUSED);
+      
+      // Delete the job
+      const result = jobService.deleteJob(job.id);
+      
+      // Verify the result
+      expect(result.success).toBe(true);
+      
+      // Verify the job is actually deleted
+      const retrievedJob = jobService.getJobById(job.id);
+      expect(retrievedJob).toBeNull();
+    });
+    
+    test('Should not delete a job in RUNNING state', () => {
+      // Create a job
+      const job = jobService.createJob('test-job');
+      
+      // Verify initial state
+      expect(job).toBeDefined();
+      expect(job.id).toBeDefined();
+      
+      // Set status to RUNNING
+      job.updateStatus(JobStatus.RUNNING);
+      expect(job.status).toBe(JobStatus.RUNNING);
+      
+      // Try to delete the job
+      const result = jobService.deleteJob(job.id);
+      
+      // Verify the result
+      expect(result.success).toBe(false);
+      expect(result.reason).toBe('invalid_status');
+      expect(result.status).toBe(JobStatus.RUNNING);
+      
+      // Verify the job still exists
+      const retrievedJob = jobService.getJobById(job.id);
+      expect(retrievedJob).not.toBeNull();
+      expect(retrievedJob.id).toBe(job.id);
+    });
+    
+    test('Should not delete a job in COMPLETED state', () => {
+      // Create a job
+      const job = jobService.createJob('test-job');
+      
+      // Verify initial state
+      expect(job).toBeDefined();
+      expect(job.id).toBeDefined();
+      
+      // Set status to COMPLETED
+      job.updateStatus(JobStatus.COMPLETED);
+      expect(job.status).toBe(JobStatus.COMPLETED);
+      
+      // Try to delete the job
+      const result = jobService.deleteJob(job.id);
+      
+      // Verify the result
+      expect(result.success).toBe(false);
+      expect(result.reason).toBe('invalid_status');
+      expect(result.status).toBe(JobStatus.COMPLETED);
+    });
+    
+    test('Should not delete a job in FAILED state', () => {
+      // Create a job
+      const job = jobService.createJob('test-job');
+      
+      // Verify initial state
+      expect(job).toBeDefined();
+      expect(job.id).toBeDefined();
+      
+      // Set status to FAILED
+      job.updateStatus(JobStatus.FAILED);
+      expect(job.status).toBe(JobStatus.FAILED);
+      
+      // Try to delete the job
+      const result = jobService.deleteJob(job.id);
+      
+      // Verify the result
+      expect(result.success).toBe(false);
+      expect(result.reason).toBe('invalid_status');
+      expect(result.status).toBe(JobStatus.FAILED);
+    });
+    
+    test('Should return not_found for non-existent job ID', () => {
+      // Try to delete a job with a non-existent ID
+      const result = jobService.deleteJob('non-existent-id');
+      
+      // Verify the result
+      expect(result.success).toBe(false);
+      expect(result.reason).toBe('not_found');
+    });
+  });
 });

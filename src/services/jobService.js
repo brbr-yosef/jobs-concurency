@@ -287,6 +287,34 @@ class JobService {
       throw error;
     }
   }
+
+  /**
+   * Delete a job if it's in a deletable state (pending or paused)
+   * @param {string} jobId - ID of the job to delete
+   * @returns {Object} - Result of the deletion operation
+   */
+  deleteJob(jobId) {
+    const job = this.#jobs.get(jobId);
+
+    if (!job) {
+      logger.warn(`Job with ID ${jobId} not found`);
+      return { success: false, reason: 'not_found' };
+    }
+
+    if (job.status !== JobStatus.PENDING && job.status !== JobStatus.PAUSED) {
+      logger.warn(`Cannot delete job ${jobId} with status ${job.status}`);
+      return { success: false, reason: 'invalid_status', status: job.status };
+    }
+
+    try {
+      this.#jobs.delete(jobId);
+      logger.info(`Deleted job ${jobId}`);
+      return { success: true };
+    } catch (error) {
+      logger.error(`Error deleting job ${jobId}: ${error.message}`);
+      return { success: false, reason: 'error', message: error.message };
+    }
+  }
 }
 
 export const jobService = new JobService();

@@ -164,4 +164,49 @@ export class JobController {
       });
     }
   }
+
+  /**
+   * Deletes a job with the given ID if it's in a deletable state
+   * @param {import('express').Request} req - Express request
+   * @param {import('express').Response} res - Express response
+   */
+  static deleteJobById(req, res) {
+    try {
+      const { id } = req.params;
+      logger.info(`Deleting job with ID: ${id}`);
+
+      const result = jobService.deleteJob(id);
+
+      if (result.success) {
+        return res.status(200).json({
+          message: 'Job deleted successfully'
+        });
+      } 
+      
+      // Handle different failure reasons
+      if (result.reason === 'not_found') {
+        return res.status(404).json({
+          message: `Job with ID ${id} not found`,
+          code: 404
+        });
+      } else if (result.reason === 'invalid_status') {
+        return res.status(400).json({
+          message: `Job with ID ${id} cannot be deleted because it is ${result.status}`,
+          code: 400
+        });
+      } else {
+        // Generic error
+        return res.status(500).json({
+          message: result.message || 'Error deleting job',
+          code: 500
+        });
+      }
+    } catch (error) {
+      logger.error(`Error deleting job: ${error.message}`);
+      return res.status(500).json({
+        message: `Error deleting job: ${error.message}`,
+        code: 500
+      });
+    }
+  }
 }

@@ -8,6 +8,7 @@ const mockGetFilteredJobs = jest.fn();
 const mockGetJobById = jest.fn();
 const mockGetJobStats = jest.fn();
 const mockUpdateJobPriority = jest.fn();
+const mockDeleteJob = jest.fn();
 
 jest.unstable_mockModule('../../src/services/jobService.js', () => ({
   jobService: {
@@ -15,7 +16,8 @@ jest.unstable_mockModule('../../src/services/jobService.js', () => ({
     getFilteredJobs: mockGetFilteredJobs,
     getJobById: mockGetJobById,
     getJobStats: mockGetJobStats,
-    updateJobPriority: mockUpdateJobPriority
+    updateJobPriority: mockUpdateJobPriority,
+    deleteJob: mockDeleteJob
   }
 }));
 
@@ -171,6 +173,105 @@ describe('JobController', () => {
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
         message: expect.stringContaining('Error updating job priority')
+      }));
+    });
+  });
+  
+  describe('deleteJobById', () => {
+    test('Should return 200 when job is successfully deleted', () => {
+      // Setup
+      req.params = { id: '123' };
+      mockDeleteJob.mockReturnValue({ success: true });
+      
+      // Execute
+      JobController.deleteJobById(req, res);
+      
+      // Verify
+      expect(mockDeleteJob).toHaveBeenCalledWith('123');
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        message: 'Job deleted successfully'
+      }));
+    });
+    
+    test('Should return 404 when job is not found', () => {
+      // Setup
+      req.params = { id: 'non-existent-id' };
+      mockDeleteJob.mockReturnValue({ 
+        success: false, 
+        reason: 'not_found' 
+      });
+      
+      // Execute
+      JobController.deleteJobById(req, res);
+      
+      // Verify
+      expect(mockDeleteJob).toHaveBeenCalledWith('non-existent-id');
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        message: expect.stringContaining('not found'),
+        code: 404
+      }));
+    });
+    
+    test('Should return 400 when job cannot be deleted due to its status', () => {
+      // Setup
+      req.params = { id: '123' };
+      mockDeleteJob.mockReturnValue({ 
+        success: false, 
+        reason: 'invalid_status',
+        status: 'RUNNING' 
+      });
+      
+      // Execute
+      JobController.deleteJobById(req, res);
+      
+      // Verify
+      expect(mockDeleteJob).toHaveBeenCalledWith('123');
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        message: expect.stringContaining('cannot be deleted'),
+        code: 400
+      }));
+    });
+    
+    test('Should return 500 when an error occurs during deletion', () => {
+      // Setup
+      req.params = { id: '123' };
+      mockDeleteJob.mockReturnValue({ 
+        success: false, 
+        reason: 'error',
+        message: 'Database error' 
+      });
+      
+      // Execute
+      JobController.deleteJobById(req, res);
+      
+      // Verify
+      expect(mockDeleteJob).toHaveBeenCalledWith('123');
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        message: 'Database error',
+        code: 500
+      }));
+    });
+    
+    test('Should handle exceptions and return 500', () => {
+      // Setup
+      req.params = { id: '123' };
+      mockDeleteJob.mockImplementation(() => {
+        throw new Error('Unexpected error');
+      });
+      
+      // Execute
+      JobController.deleteJobById(req, res);
+      
+      // Verify
+      expect(mockDeleteJob).toHaveBeenCalledWith('123');
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        message: expect.stringContaining('Unexpected error'),
+        code: 500
       }));
     });
   });
