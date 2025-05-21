@@ -276,6 +276,16 @@ class JobService {
       this.#processQueue();
     });
   }
+
+  /**
+   * Clear all jobs (for testing purposes only)
+   * @returns {void}
+   */
+  clearAllJobs() {
+    this.#jobs.clear();
+    this.#runningJobs.clear();
+    logger.debug('Cleared all jobs (testing only)');
+  }
 }
 
 export const jobService = new JobService();
