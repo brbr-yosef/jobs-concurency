@@ -1,9 +1,7 @@
 name: Create Release
 
 on:
-  #
   # Starts when merging PR into master
-  #
   pull_request:
     types: [closed]
     branches: [ master ]
@@ -12,18 +10,27 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Verifying that the PR was merged, not closed without a merger
-  check-pr-merged:
-    name: Check if PR was merged
+  # Workflow for PR merge event
+  pr_workflow:
+    name: PR Workflow
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true
     steps:
       - run: echo "PR was merged, proceeding with release"
+
+  # Workflow for manual trigger
+  manual_workflow:
+    name: Manual Workflow
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Workflow was triggered manually, proceeding with release"
 
   # Run tests
   test:
     name: Test
-    needs: check-pr-merged
+    needs: [pr_workflow, manual_workflow]
+    if: always() && (needs.pr_workflow.result == 'success' || needs.manual_workflow.result == 'success')
     runs-on: ubuntu-latest
 
     steps:
@@ -62,9 +69,9 @@ jobs:
   # Create release on GitHub
   release:
     name: Create Release
-    needs: test
-    runs-on: ubuntu-latest
+    needs: [test]
     if: success()
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -78,24 +85,40 @@ jobs:
 
       - name: Generate changelog
         id: changelog
-        uses: metcalfc/changelog-generator@v4.1.0
-        with:
-          myToken: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          if [ -z "$LATEST_TAG" ]; then
+            # If no tags exist, get all commits
+            CHANGELOG=$(git log --pretty=format:"* %s (%an)" --reverse)
+          else
+            # Get commits since the latest tag
+            CHANGELOG=$(git log ${LATEST_TAG}..HEAD --pretty=format:"* %s (%an)" --reverse)
+          fi
+          
+          # Escape newlines for GitHub Actions
+          CHANGELOG="${CHANGELOG//'%'/'%25'}"
+          CHANGELOG="${CHANGELOG//$'\n'/'%0A'}"
+          CHANGELOG="${CHANGELOG//$'\r'/'%0D'}"
+          
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.package_version.outputs.VERSION }}
-          release_name: Release v${{ steps.package_version.outputs.VERSION }}
+          name: Release v${{ steps.package_version.outputs.VERSION }}
           body: |
             # Changelog
-
-            ${{ steps.changelog.outputs.changelog }}
+            
+            ${{ steps.changelog.outputs.CHANGELOG }}
           draft: false
           prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update version in package.json
         run: |
