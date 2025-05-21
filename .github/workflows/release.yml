@@ -16,14 +16,15 @@ jobs:
   check-pr-merged:
     name: Check if PR was merged
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
     steps:
       - run: echo "PR was merged, proceeding with release"
 
   # Run tests
   test:
     name: Test
-    needs: check-pr-merged
+    needs: [check-pr-merged]
+    if: success() || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
@@ -62,9 +63,9 @@ jobs:
   # Create release on GitHub
   release:
     name: Create Release
-    needs: test
-    runs-on: ubuntu-latest
+    needs: [test]
     if: success()
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
