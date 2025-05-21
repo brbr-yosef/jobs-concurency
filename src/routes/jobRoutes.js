@@ -21,7 +21,7 @@ const router = Router();
  *               jobName:
  *                 type: string
  *                 description: Name of the job to run
- *               arguments:
+ *               args:
  *                 type: array
  *                 items:
  *                   type: string

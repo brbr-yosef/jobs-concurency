@@ -12,7 +12,8 @@ import { logger } from '../utils/logger/index.js';
 const getJobScriptPath = () => {
   const isWindows = os.platform() === 'win32';
   const scriptName = isWindows ? 'dummy-job.bat' : 'dummy-job.sh';
-  return path.resolve(process.cwd(), 'scripts', scriptName);
+  // Используем path.join для корректного формирования пути
+  return path.join(process.cwd(), 'scripts', scriptName);
 };
 
 /**
@@ -236,12 +237,12 @@ class JobService {
 
     // Prepare execution command
     const allArgs = [job.jobName, ...job.args];
-    const command = `${this.#jobScript} ${allArgs.join(' ')}`;
+    const command = `"${this.#jobScript}" ${allArgs.join(' ')}`;
 
     logger.debug(`Executing command: ${command}`);
 
     // Run the process
-    cmd.get(command, (err, data, stderr) => {
+    cmd.run(command, (err, data, stderr) => {
       this.#runningJobs.delete(jobId);
 
       job.completedAt = new Date().toISOString();

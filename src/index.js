@@ -1,15 +1,13 @@
 import express from 'express';
-import dotenv from 'dotenv';
 import cors from 'cors';
 import { logger, createHttpLogger } from './utils/logger/index.js';
 import { setupSwagger } from './config/swagger.js';
+import { config } from './config/index.js';
 import jobRoutes from './routes/jobRoutes.js';
 import { JobController } from './controllers/jobController.js';
 
-dotenv.config();
-
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = config.PORT;
 
 // Middleware
 app.use(express.json());
