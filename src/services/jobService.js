@@ -12,7 +12,6 @@ import { logger } from '../utils/logger/index.js';
 const getJobScriptPath = () => {
   const isWindows = os.platform() === 'win32';
   const scriptName = isWindows ? 'dummy-job.bat' : 'dummy-job.sh';
-  // Используем path.join для корректного формирования пути
   return path.join(process.cwd(), 'scripts', scriptName);
 };
 
