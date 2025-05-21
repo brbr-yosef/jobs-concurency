@@ -1,0 +1,124 @@
+name: Create Release
+
+on:
+  #
+  # Starts when merging PR into master
+  #
+  pull_request:
+    types: [closed]
+    branches: [ master ]
+
+  # Manual trigger from GitHub
+  workflow_dispatch:
+
+jobs:
+  # Verifying that the PR was merged, not closed without a merger
+  check-pr-merged:
+    name: Check if PR was merged
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    steps:
+      - run: echo "PR was merged, proceeding with release"
+
+  # Run tests
+  test:
+    name: Test
+    needs: check-pr-merged
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '23.x'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          run_install: false
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run tests
+        run: pnpm test
+
+  # Create release on GitHub
+  release:
+    name: Create Release
+    needs: test
+    runs-on: ubuntu-latest
+    if: success()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Full history for changelog generation
+
+      - name: Get package version
+        id: package_version
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        uses: metcalfc/changelog-generator@v4.1.0
+        with:
+          myToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.package_version.outputs.VERSION }}
+          release_name: Release v${{ steps.package_version.outputs.VERSION }}
+          body: |
+            # Changelog
+
+            ${{ steps.changelog.outputs.changelog }}
+          draft: false
+          prerelease: false
+
+      - name: Update version in package.json
+        run: |
+          NEW_VERSION=$(node -e "
+            const pkg = require('./package.json');
+            const [major, minor, patch] = pkg.version.split('.');
+            pkg.version = \`\${major}.\${minor}.\${parseInt(patch) + 1}\`;
+            console.log(pkg.version);
+          ")
+          
+          node -e "
+            const fs = require('fs');
+            const pkg = require('./package.json');
+            const [major, minor, patch] = pkg.version.split('.');
+            pkg.version = \`\${major}.\${minor}.\${parseInt(patch) + 1}\`;
+            fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          
+          echo "Updated version to $NEW_VERSION"
+
+      - name: Commit version bump
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "chore: bump version for next development cycle"
+          branch: dev
+          file_pattern: package.json
