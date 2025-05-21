@@ -1,13 +1,11 @@
 name: Create Release
 
 on:
-  #
   # Starts when merging PR into master
-  #
   pull_request:
     types: [closed]
     branches: [ master ]
-  
+
   # Manual trigger from GitHub
   workflow_dispatch:
 
