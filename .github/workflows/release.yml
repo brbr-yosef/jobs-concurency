@@ -7,7 +7,7 @@ on:
   pull_request:
     types: [closed]
     branches: [ master ]
-
+  
   # Manual trigger from GitHub
   workflow_dispatch:
 
@@ -78,24 +78,40 @@ jobs:
 
       - name: Generate changelog
         id: changelog
-        uses: metcalfc/changelog-generator@v4.1.0
-        with:
-          myToken: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          if [ -z "$LATEST_TAG" ]; then
+            # If no tags exist, get all commits
+            CHANGELOG=$(git log --pretty=format:"* %s (%an)" --reverse)
+          else
+            # Get commits since the latest tag
+            CHANGELOG=$(git log ${LATEST_TAG}..HEAD --pretty=format:"* %s (%an)" --reverse)
+          fi
+          
+          # Escape newlines for GitHub Actions
+          CHANGELOG="${CHANGELOG//'%'/'%25'}"
+          CHANGELOG="${CHANGELOG//$'\n'/'%0A'}"
+          CHANGELOG="${CHANGELOG//$'\r'/'%0D'}"
+          
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.package_version.outputs.VERSION }}
-          release_name: Release v${{ steps.package_version.outputs.VERSION }}
+          name: Release v${{ steps.package_version.outputs.VERSION }}
           body: |
             # Changelog
-
-            ${{ steps.changelog.outputs.changelog }}
+            
+            ${{ steps.changelog.outputs.CHANGELOG }}
           draft: false
           prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update version in package.json
         run: |
