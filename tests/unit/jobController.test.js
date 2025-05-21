@@ -130,7 +130,6 @@ describe('JobController', () => {
       JobController.getJobById(req, res);
       
       expect(mockGetJobById).toHaveBeenCalledWith('123');
-      // Контроллер возвращает объект job напрямую, а не обернутый в { job }
       expect(res.json).toHaveBeenCalledWith(mockJob);
     });
     

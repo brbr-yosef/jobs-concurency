@@ -53,7 +53,7 @@ async function getAllJobs() {
 
 /**
  * Get job statistics via API
- * @returns {Promise<Object>} - Статистика задач
+ * @returns {Promise<Object>} - job statistics
  */
 async function getStats() {
   try {
