@@ -12,19 +12,27 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Verifying that the PR was merged, not closed without a merger
-  check-pr-merged:
-    name: Check if PR was merged
-    runs-on: ubuntu-latest
+  # Workflow for PR merge event
+  pr_workflow:
+    name: PR Workflow
     if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
     steps:
       - run: echo "PR was merged, proceeding with release"
+
+  # Workflow for manual trigger
+  manual_workflow:
+    name: Manual Workflow
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Workflow was triggered manually, proceeding with release"
 
   # Run tests
   test:
     name: Test
-    needs: [check-pr-merged]
-    if: success() || github.event_name == 'workflow_dispatch'
+    needs: [pr_workflow, manual_workflow]
+    if: always() && (needs.pr_workflow.result == 'success' || needs.manual_workflow.result == 'success')
     runs-on: ubuntu-latest
 
     steps:
