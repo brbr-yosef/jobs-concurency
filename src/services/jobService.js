@@ -65,16 +65,41 @@ class JobService {
 
   /**
    * Get all jobs
-   * @returns {object[]} - List of jobs
+   * @returns {object[]} - Array of jobs
    */
   getAllJobs() {
     return Array.from(this.#jobs.values());
+  }
+  
+  /**
+   * Get filtered and paginated jobs
+   * @param {object} options - Filter and pagination options
+   * @param {string} [options.status] - Filter by status
+   * @param {number} [options.limit=50] - Maximum number of jobs to return
+   * @param {number} [options.offset=0] - Number of jobs to skip
+   * @returns {object} - Object with total count and filtered/paginated jobs
+   */
+  getFilteredJobs({ status, limit = 50, offset = 0 } = {}) {
+    let jobs = this.getAllJobs();
+    
+    if (status) {
+      jobs = jobs.filter(job => job.status === status);
+    }
+    
+    const total = jobs.length;
+    
+    jobs = jobs.slice(offset, offset + parseInt(limit));
+    
+    return {
+      total,
+      jobs
+    };
   }
 
   /**
    * Get job by ID
    * @param {string} jobId - Job ID
-   * @returns {object|null} - Job; or Null if job not found
+   * @returns {object|null} - Job object or null if not found
    */
   getJobById(jobId) {
     return this.#jobs.get(jobId) || null;
