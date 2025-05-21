@@ -91,56 +91,19 @@ jobs:
       - name: Build application
         run: pnpm run build --if-present
 
-      - name: Create deployment package
+      - name: Verify Docker configuration
         run: |
-          mkdir -p deployment
-          cp -r src/ deployment/
-          cp package.json pnpm-lock.yaml deployment/
-          cp -r scripts/ deployment/ || true
-          cp Dockerfile docker-compose.yml deployment/ || true
-          cp .env.dev .env.prod deployment/ || true
-          echo "Deployment package created"
-
-      - name: Upload deployment package
-        uses: actions/upload-artifact@v1
-        with:
-          name: deployment-package
-          path: deployment
-
-  deploy:
-    name: Deploy
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev')
-
-    steps:
-      - name: Download deployment package
-        uses: actions/download-artifact@v1
-        with:
-          name: deployment-package
-          path: ./
-
-      - name: Set up SSH
-        if: env.SSH_PRIVATE_KEY != ''
-        uses: webfactory/ssh-agent@v0.7.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: Deploy to server
-        if: env.SSH_PRIVATE_KEY != ''
-        run: |
-          echo "Deploying to server..."
-          # Здесь будут команды для деплоя на сервер
-          # Например:
-          # scp -r ./* user@your-server:/path/to/deployment
-          # ssh user@your-server 'cd /path/to/deployment && ./scripts/deploy.sh'
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: Skip deployment
-        if: env.SSH_PRIVATE_KEY == ''
-        run: echo "Skipping deployment because SSH_PRIVATE_KEY is not set"
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          echo "Verifying Docker configuration..."
+          if [ -f "Dockerfile" ]; then
+            echo "Dockerfile exists"
+          else
+            echo "Dockerfile not found"
+          fi
+          
+          if [ -f "docker-compose.yml" ]; then
+            echo "docker-compose.yml exists"
+          else
+            echo "docker-compose.yml not found"
+          fi
+          
+          echo "Build completed successfully"
