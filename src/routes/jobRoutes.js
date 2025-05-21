@@ -162,4 +162,67 @@ router.get('/stats', JobController.getJobStats);
  */
 router.get('/:id', JobController.getJobById);
 
+/**
+ * @swagger
+ * /jobs/{id}/priority:
+ *   put:
+ *     summary: Update job priority
+ *     description: Updates the priority of a job with the specified ID
+ *     tags: [Jobs]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the job to update
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - priority
+ *             properties:
+ *               priority:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 5
+ *                 description: New priority value (1-5, where 5 is highest)
+ *                 example: 4
+ *     responses:
+ *       200:
+ *         description: Job priority updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Job priority updated successfully
+ *                 job:
+ *                   $ref: '#/components/schemas/Job'
+ *       400:
+ *         description: Invalid priority value
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Job not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.put('/:id/priority', JobController.updateJobPriorityById);
+
 export default router;

@@ -9,7 +9,8 @@
     "dev": "nodemon src/index.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config=jest.config.mjs",
     "lint": "eslint src/**/*.js",
-    "test:concurrent": "node tests/manual/concurrent-jobs-test.js"
+    "test:concurrent": "node tests/manual/concurrent-jobs-test.js",
+    "test:concurrent-priority": "node tests/manual/concurrent-jobs-priority-test.js"
   },
   "keywords": [
     "jobs",
