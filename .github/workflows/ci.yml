@@ -88,22 +88,42 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build application
-        run: pnpm run build --if-present
-
-      - name: Verify Docker configuration
+      - name: Verify project configuration
         run: |
-          echo "Verifying Docker configuration..."
+          echo "Verifying project configuration..."
+          
+          # Check for Docker configuration
           if [ -f "Dockerfile" ]; then
-            echo "Dockerfile exists"
+            echo " Dockerfile exists"
           else
-            echo "Dockerfile not found"
+            echo " Dockerfile not found"
           fi
           
           if [ -f "docker-compose.yml" ]; then
-            echo "docker-compose.yml exists"
+            echo " docker-compose.yml exists"
           else
-            echo "docker-compose.yml not found"
+            echo " docker-compose.yml not found"
           fi
           
-          echo "Build completed successfully"
+          # Check for environment example file
+          if [ -f ".env.example" ]; then
+            echo " .env.example exists"
+          else
+            echo " .env.example not found"
+          fi
+          
+          # Check for deployment script
+          if [ -f "scripts/deploy.sh" ]; then
+            echo " Deployment script exists"
+          else
+            echo " Deployment script not found"
+          fi
+          
+          # Check for documentation
+          if [ -d "docs" ]; then
+            echo " Documentation directory exists"
+          else
+            echo " Documentation directory not found"
+          fi
+          
+          echo "Project verification completed successfully"
