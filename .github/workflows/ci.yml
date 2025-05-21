@@ -91,25 +91,21 @@ jobs:
       - name: Build application
         run: pnpm run build --if-present
 
-      - name: Create artifacts directory
-        run: mkdir -p artifacts
-
-      - name: Copy files to artifacts
+      - name: Create deployment package
         run: |
-          cp -r src/ artifacts/
-          cp package.json artifacts/
-          cp pnpm-lock.yaml artifacts/ || true
-          cp -r scripts/ artifacts/ || true
-          cp Dockerfile artifacts/ || true
-          cp docker-compose.yml artifacts/ || true
-          cp .env.dev artifacts/ || true
-          cp .env.prod artifacts/ || true
+          mkdir -p deployment
+          cp -r src/ deployment/
+          cp package.json pnpm-lock.yaml deployment/
+          cp -r scripts/ deployment/ || true
+          cp Dockerfile docker-compose.yml deployment/ || true
+          cp .env.dev .env.prod deployment/ || true
+          echo "Deployment package created"
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v2
+      - name: Upload deployment package
+        uses: actions/upload-artifact@v1
         with:
-          name: app-artifacts
-          path: artifacts/
+          name: deployment-package
+          path: deployment
 
   deploy:
     name: Deploy
@@ -118,10 +114,10 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/dev')
 
     steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
+      - name: Download deployment package
+        uses: actions/download-artifact@v1
         with:
-          name: app-artifacts
+          name: deployment-package
           path: ./
 
       - name: Set up SSH
