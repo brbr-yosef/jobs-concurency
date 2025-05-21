@@ -4,6 +4,7 @@ import os from 'os';
 import cmd from 'node-cmd';
 import { config } from '../config/index.js';
 import { logger } from '../utils/logger/index.js';
+import { Job, JobStatus } from '../models/job.js';
 
 /**
  * Depend on OS defines which script to use.
@@ -12,7 +13,8 @@ import { logger } from '../utils/logger/index.js';
 const getJobScriptPath = () => {
   const isWindows = os.platform() === 'win32';
   const scriptName = isWindows ? 'dummy-job.bat' : 'dummy-job.sh';
-  return path.join(process.cwd(), 'scripts', scriptName);
+  const scriptPath = path.join(process.cwd(), 'scripts', scriptName);
+  return `"${scriptPath}"`;
 };
 
 /**
@@ -38,34 +40,28 @@ class JobService {
    * Creates new job
    * @param {string} jobName - Name of job
    * @param {string[]} jobArgs - Job's args
-   * @returns {object} - Object - created job
+   * @param {number} priority - Priority of job (by default = 3)
+   * @returns {Job} - Created job instance
    */
-  createJob(jobName, jobArgs = []) {
-    const jobId = uuidv4();
-    const job = {
-      id: jobId,
-      jobName,
-      args: jobArgs,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      startedAt: null,
-      completedAt: null,
-      exitCode: null,
-      retryCount: 0
-    };
+  createJob(jobName, jobArgs = [], priority = 3) {
+    try {
+      const job = new Job(jobName, jobArgs, { logger, priority });
+      this.#jobs.set(job.id, job);
+      logger.info(`Created job ${job.id} with name ${jobName}, priority ${priority}`);
 
-    this.#jobs.set(jobId, job);
-    logger.info(`Created job ${jobId} with name ${jobName}`);
+      // Run the job if there are free slots available
+      this.#processQueue();
 
-    // Run the job if there are free slots available
-    this.#processQueue();
-
-    return job;
+      return job;
+    } catch (error) {
+      logger.error(`Error creating job: ${error.message}`);
+      throw error;
+    }
   }
 
   /**
    * Get all jobs
-   * @returns {object[]} - Array of jobs
+   * @returns {Job[]} - Array of jobs
    */
   getAllJobs() {
     return Array.from(this.#jobs.values());
@@ -95,196 +91,229 @@ class JobService {
       jobs
     };
   }
-
+  
   /**
    * Get job by ID
    * @param {string} jobId - Job ID
-   * @returns {object|null} - Job object or null if not found
+   * @returns {Job|null} - Job instance or null if not found
    */
   getJobById(jobId) {
     return this.#jobs.get(jobId) || null;
   }
-
+  
   /**
-   * Get Jobs stats
-   * @returns {object} - Stats
+   * Get job statistics
+   * @returns {object} - Job statistics
    */
   getJobStats() {
-    const jobs = this.getAllJobs();
-
-    // Basic stats
-    const totalJobs = jobs.length;
-    const completedJobs = jobs.filter(job => job.status === 'completed').length;
-    const failedJobs = jobs.filter(job => job.status === 'failed').length;
-    const pendingJobs = jobs.filter(job => job.status === 'pending').length;
-    const runningJobs = jobs.filter(job => job.status === 'running').length;
-
-    // Calculate average completion time
-    const completedJobsList = jobs.filter(job => job.status === 'completed' && job.startedAt && job.completedAt);
+    const allJobs = this.getAllJobs();
+    const totalJobs = allJobs.length;
+    const completedJobs = allJobs.filter(job => job.status === JobStatus.COMPLETED).length;
+    const failedJobs = allJobs.filter(job => job.status === JobStatus.FAILED).length;
+    const pendingJobs = allJobs.filter(job => job.status === JobStatus.PENDING).length;
+    const runningJobs = allJobs.filter(job => job.status === JobStatus.RUNNING).length;
+    const retriedJobs = allJobs.filter(job => job.retryCount > 0).length;
+    
+    // Calculate average completion time for completed jobs
+    const completedJobsWithTime = allJobs.filter(job => 
+      job.status === JobStatus.COMPLETED && job.startedAt && job.completedAt
+    );
+    
     let averageCompletionTime = 0;
-
-    if (completedJobsList.length > 0) {
-      const totalTime = completedJobsList.reduce((acc, job) => {
+    
+    if (completedJobsWithTime.length > 0) {
+      const totalCompletionTime = completedJobsWithTime.reduce((total, job) => {
         const startTime = new Date(job.startedAt).getTime();
         const endTime = new Date(job.completedAt).getTime();
-        return acc + (endTime - startTime);
+        return total + (endTime - startTime);
       }, 0);
-
-      averageCompletionTime = totalTime / completedJobsList.length;
+      
+      averageCompletionTime = totalCompletionTime / completedJobsWithTime.length;
     }
-
-    // Calculate percentages of successful jobs
-    const successRate = totalJobs > 0 ? (completedJobs / totalJobs) * 100 : 0;
-
-    // Analyze patterns
-    const patterns = [];
-
-    // # 1: Length of job name > 10 chars
-    const longNameJobs = jobs.filter(job => job.jobName.length > 10);
-    if (longNameJobs.length > 0) {
-      const longNameSuccessRate = longNameJobs.filter(job => job.status === 'completed').length / longNameJobs.length;
-      patterns.push({
-        pattern: 'Job name length > 10',
-        matchCount: longNameJobs.length,
-        successRate: longNameSuccessRate,
-        differenceFromAverage: `${((longNameSuccessRate * 100) - successRate).toFixed(2)}%`
-      });
+    
+    // Get most common job name
+    const jobNameCounts = allJobs.reduce((counts, job) => {
+      counts[job.jobName] = (counts[job.jobName] || 0) + 1;
+      return counts;
+    }, {});
+    
+    let mostCommonJobName = null;
+    let maxCount = 0;
+    
+    for (const [name, count] of Object.entries(jobNameCounts)) {
+      if (count > maxCount) {
+        mostCommonJobName = name;
+        maxCount = count;
+      }
     }
-
-    // # 2: Jobs with vs. without args
-    const jobsWithArgs = jobs.filter(job => job.args && job.args.length > 0);
-    if (jobsWithArgs.length > 0) {
-      const withArgsSuccessRate = jobsWithArgs.filter(job => job.status === 'completed').length / jobsWithArgs.length;
-      patterns.push({
-        pattern: 'Jobs with arguments',
-        matchCount: jobsWithArgs.length,
-        successRate: withArgsSuccessRate,
-        differenceFromAverage: `${((withArgsSuccessRate * 100) - successRate).toFixed(2)}%`
-      });
-    }
-
-    // #3: Restarted jobs
-    const retriedJobs = jobs.filter(job => job.retryCount > 0);
-    if (retriedJobs.length > 0) {
-      const retriedSuccessRate = retriedJobs.filter(job => job.status === 'completed').length / retriedJobs.length;
-      patterns.push({
-        pattern: 'Jobs that were retried',
-        matchCount: retriedJobs.length,
-        successRate: retriedSuccessRate,
-        differenceFromAverage: `${((retriedSuccessRate * 100) - successRate).toFixed(2)}%`
-      });
-    }
-
+    
     return {
       totalJobs,
       completedJobs,
       failedJobs,
       pendingJobs,
       runningJobs,
-      retriedJobs: retriedJobs.length,
+      retriedJobs,
       averageCompletionTime,
-      successRate,
-      patterns
+      mostCommonJobName,
+      mostCommonJobCount: maxCount
     };
   }
-
+  
   /**
-   * Processing of jobs queue
+   * Process the job queue
    * @private
    */
   #processQueue() {
     if (this.#runningJobs.size >= this.#maxConcurrentJobs) {
-      logger.debug(`Max concurrent jobs limit reached (${this.#runningJobs.size}/${this.#maxConcurrentJobs})`);
+      logger.debug(`Max concurrent jobs limit reached (${this.#maxConcurrentJobs}). Waiting for jobs to complete.`);
       return;
     }
-
-    const pendingJobs = Array.from(this.#jobs.values())
-      .filter(job => job.status === 'pending');
-
+    
+    // Get all pending jobs and sort them by priority (higher priority first)
+    const pendingJobs = this.getAllJobs()
+      .filter(job => job.status === JobStatus.PENDING)
+      .sort((a, b) => b.priority - a.priority);
+    
     if (pendingJobs.length === 0) {
       logger.debug('No pending jobs to process');
       return;
     }
-
-    for (const job of pendingJobs) {
-      if (this.#runningJobs.size >= this.#maxConcurrentJobs) {
-        break;
-      }
-
-      this.#startJob(job.id);
+    
+    // Calculate how many jobs we can start
+    const availableSlots = this.#maxConcurrentJobs - this.#runningJobs.size;
+    const jobsToStart = Math.min(availableSlots, pendingJobs.length);
+    
+    logger.debug(`Starting ${jobsToStart} jobs (${availableSlots} slots available, ${pendingJobs.length} pending jobs)`);
+    
+    // Start the jobs
+    for (let i = 0; i < jobsToStart; i++) {
+      const job = pendingJobs[i];
+      this.#startJob(job);
     }
   }
-
+  
   /**
-   * Start job
-   * @param {string} jobId - Job ID
+   * Start a job
+   * @param {Job} job - Job to start
    * @private
    */
-  #startJob(jobId) {
-    const job = this.#jobs.get(jobId);
-
-    if (!job || job.status !== 'pending') {
-      return;
-    }
-
-    // Refresh job status and start time
-    job.status = 'running';
-    job.startedAt = new Date().toISOString();
-    this.#runningJobs.add(jobId);
-
-    logger.info(`Starting job ${jobId} (${job.jobName})`);
-
-    // Prepare execution command
-    const allArgs = [job.jobName, ...job.args];
-    const command = `"${this.#jobScript}" ${allArgs.join(' ')}`;
-
+  #startJob(job) {
+    logger.info(`Starting job ${job.id} (${job.jobName})`);
+    
+    job.updateStatus(JobStatus.RUNNING);
+    this.#runningJobs.add(job.id);
+    
+    const command = `${this.#jobScript} ${job.jobName} ${job.jobArgs.join(' ')}`;
     logger.debug(`Executing command: ${command}`);
-
-    // Run the process
-    cmd.run(command, (err, data, stderr) => {
-      this.#runningJobs.delete(jobId);
-
-      job.completedAt = new Date().toISOString();
-
-      if (err) {
-        logger.error(`Job ${jobId} failed: ${err.message}`);
-        job.exitCode = err.code || 1;
-
-        // Restart the task if it failed and if the number of attempts is not exceeded
-        if (job.retryCount < this.#jobRetryAttempts) {
-          job.retryCount++;
-          job.status = 'retried';
-          logger.info(`Retrying job ${jobId} (attempt ${job.retryCount}/${this.#jobRetryAttempts})`);
-
-          job.startedAt = null;
-          job.completedAt = null;
-
-          setTimeout(() => {
-            job.status = 'pending';
+    
+    try {
+      const process = cmd.run(command, (err, data, stderr) => {
+        this.#runningJobs.delete(job.id);
+        
+        if (err) {
+          logger.error(`Job ${job.id} failed with error: ${err.message}`);
+          
+          // Check if we should retry
+          if (job.retryCount < this.#jobRetryAttempts) {
+            logger.info(`Retrying job ${job.id} (attempt ${job.retryCount + 1}/${this.#jobRetryAttempts})`);
+            job.incrementRetry();
+            job.updateStatus(JobStatus.PENDING);
             this.#processQueue();
-          }, 1000);
-        } else {
-          job.status = 'failed';
-          logger.warn(`Job ${jobId} failed after ${job.retryCount} retry attempts`);
+          } else {
+            logger.info(`Job ${job.id} failed after ${job.retryCount} retry attempts`);
+            job.setExitCode(1);
+            job.updateStatus(JobStatus.FAILED);
+          }
+          
+          return;
         }
-      } else {
-        logger.info(`Job ${jobId} completed successfully`);
-        job.status = 'completed';
-        job.exitCode = 0;
-      }
-
-      this.#processQueue();
-    });
+        
+        if (stderr) {
+          logger.warn(`Job ${job.id} produced stderr output: ${stderr}`);
+        }
+        
+        logger.info(`Job ${job.id} completed successfully`);
+        job.setExitCode(0);
+        job.updateStatus(JobStatus.COMPLETED);
+        
+        // Process the queue again to start any pending jobs
+        this.#processQueue();
+      });
+      
+      job.setProcess(process);
+    } catch (error) {
+      logger.error(`Error starting job ${job.id}: ${error.message}`);
+      this.#runningJobs.delete(job.id);
+      job.setExitCode(1);
+      job.updateStatus(JobStatus.FAILED);
+    }
   }
-
+  
   /**
-   * Clear all jobs (for testing purposes only)
-   * @returns {void}
+   * For testing purposes only
    */
   clearAllJobs() {
     this.#jobs.clear();
     this.#runningJobs.clear();
     logger.debug('Cleared all jobs (testing only)');
+  }
+
+  /**
+   * Update the priority of the job with the given ID
+   * @param {string} jobId - ID of the job to update
+   * @param {number} [priority=3] - New priority of the job (1-5)
+   * @throws {Error} - If the priority is invalid
+   * @returns {Job} - Updated job instance
+   */
+  updateJobPriority(jobId, priority = 3) {
+    const job = this.#jobs.get(jobId);
+
+    if (!job) {
+      return null;
+    }
+
+    try {
+      job.updatePriority(priority);
+      logger.info(`Updated job ${jobId} priority to ${priority}`);
+
+      if (job.status === JobStatus.PENDING) {
+        this.#processQueue();
+      }
+
+      return job;
+    } catch (error) {
+      logger.error(`Error updating job ${jobId} priority: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a job if it's in a deletable state (pending or paused)
+   * @param {string} jobId - ID of the job to delete
+   * @returns {Object} - Result of the deletion operation
+   */
+  deleteJob(jobId) {
+    const job = this.#jobs.get(jobId);
+
+    if (!job) {
+      logger.warn(`Job with ID ${jobId} not found`);
+      return { success: false, reason: 'not_found' };
+    }
+
+    if (job.status !== JobStatus.PENDING && job.status !== JobStatus.PAUSED) {
+      logger.warn(`Cannot delete job ${jobId} with status ${job.status}`);
+      return { success: false, reason: 'invalid_status', status: job.status };
+    }
+
+    try {
+      this.#jobs.delete(jobId);
+      logger.info(`Deleted job ${jobId}`);
+      return { success: true };
+    } catch (error) {
+      logger.error(`Error deleting job ${jobId}: ${error.message}`);
+      return { success: false, reason: 'error', message: error.message };
+    }
   }
 }
 

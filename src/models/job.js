@@ -14,6 +14,8 @@ const JobStatus = {
   COMPLETED: 'completed',
   FAILED: 'failed',
   RETRIED: 'retried',
+  PAUSED: 'paused',
+  STOPPING: 'stopping'
 };
 
 /**
@@ -32,6 +34,7 @@ class Job {
   #retryCount;
   #process;
   #logger;
+  #priority;
 
   /**
    * Creates a new Job instance
@@ -41,7 +44,7 @@ class Job {
    * @param {Object} [options.logger=console] - Logger instance
    * @throws {Error} - If jobName is not a string or jobArgs is not an array
    */
-  constructor(jobName, jobArgs = [], { logger = console } = {}) {
+  constructor(jobName, jobArgs = [], { logger = console, priority = 3 } = {}) {
     if (typeof jobName !== 'string' || !jobName.trim()) {
       throw new Error('Job name must be a non-empty string');
     }
@@ -62,7 +65,14 @@ class Job {
     this.#process = null;
     this.#logger = logger;
 
-    this.#logger.debug(`Job created: ${this.#id} (${this.#jobName})`);
+    if (typeof priority !=='number' || priority < 1 || priority > 5) {
+      const errorMsg = `Invalid priority: ${priority}. Must be a number between 1 and 5`;
+      this.#logger.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+    this.#priority = priority;
+
+    this.#logger.debug(`Job created: ${this.#id} (${this.#jobName}), jobs priority: ${this.#priority}`);
   }
 
   get id() { return this.#id; }
@@ -74,6 +84,7 @@ class Job {
   get completedAt() { return this.#completedAt; }
   get exitCode() { return this.#exitCode; }
   get retryCount() { return this.#retryCount; }
+  get priority() { return this.#priority; }
 
   /**
    * Updates the job status
@@ -106,6 +117,25 @@ class Job {
   }
 
   /**
+   * Updates the job status
+   * @param {number} priority - New priority
+   * @returns {Job} - Updated job instance
+   * @throws {Error} - If status is invalid
+   */
+  updatePriority(priority) {
+    if (typeof priority !== 'number' || priority < 1 || priority > 5) {
+      const errorMsg = `Invalid new priority: ${priority}. Must be a number between 1 and 5`;
+      this.#logger.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+    this.#logger.debug(`Job ${this.#id} priority changed: ${this.#priority} -> ${priority}`);
+
+    this.#priority = priority;
+
+    return this;
+  }
+
+    /**
    * Increments the retry count
    * @returns {Job} - Updated job instance
    */
@@ -166,7 +196,8 @@ class Job {
       startedAt: this.#startedAt,
       completedAt: this.#completedAt,
       exitCode: this.#exitCode,
-      retryCount: this.#retryCount
+      retryCount: this.#retryCount,
+      priority: this.#priority
     };
   }
 }
